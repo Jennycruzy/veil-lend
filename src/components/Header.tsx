@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { ArrowLeft, ExternalLink, Shield, Sparkles } from "lucide-react";
+import { ExternalLink, Shield, Sparkles } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Badge } from "@/components/ui/badge";
@@ -19,9 +17,6 @@ const WalletMultiButton = dynamic(
 export function Header() {
   const { publicKey } = useWallet();
   const { status, umbraAddress, register } = useUmbraContext();
-  const pathname = usePathname();
-  const showHomeLink = publicKey || pathname !== "/";
-  const homeHref = pathname === "/" ? "/?view=landing" : "/";
 
   const handleRegister = async () => {
     try {
@@ -52,16 +47,6 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          {showHomeLink && (
-            <Link
-              href={homeHref}
-              aria-label="Back to home page"
-              className="inline-flex h-7 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-            >
-              <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-              Home
-            </Link>
-          )}
           {publicKey && (
             <>
               <Badge

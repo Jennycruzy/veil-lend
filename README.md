@@ -23,8 +23,10 @@ VeilLend makes every step of the lending lifecycle private using Umbra's confide
 4. **Private Repayment** — Repayments flow through Umbra UTXOs back to lenders.
 5. **Private Liquidation** — Under-collateralization triggers confidential collateral transfer (Pyth oracle).
 6. **Credit Passport** — Borrowers generate scoped viewing keys for selective disclosure of repayment history.
-7. **Private Yield Pool** — Lenders deposit into a shared encrypted pool that auto-matches small loans.
-8. **Gasless Operations** — All claims and repayments use the Umbra Relayer.
+7. **Private Reputation / VeilScore** — Lenders get a scoped reputation signal without exposing full history.
+8. **Private Deal Room** — Each listing opens a masked lender review panel before funding.
+9. **Private Yield Pool** — Lenders deposit into a shared encrypted pool that auto-matches small loans.
+10. **Gasless Operations** — All claims and repayments use the Umbra Relayer.
 
 ---
 
@@ -94,6 +96,18 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Visit [http://localhost:3000/test](http://localhost:3000/test) to run all 7 Umbra SDK steps in sequence.
 
+### Judge-Ready Flow
+
+The main dashboard now includes:
+
+- A top-of-page `Home` link above the private credit console
+- A private deal room in `Browse Loans` for masked lender review
+- `VeilScore` reputation signals in the Credit Passport
+- Scoped disclosure controls for repayment, terms, and risk
+- Exportable proof summaries for lender review
+
+Use the home link to switch back to the public landing view with `/?view=landing`.
+
 ### Deploy to Vercel
 
 ```bash
@@ -111,18 +125,19 @@ Set environment variables in Vercel dashboard:
 ```
 src/
   app/
-    page.tsx          — Main dashboard (wallet connect + 5-tab interface)
+    page.tsx          — Root route with landing + dashboard switch
     test/page.tsx     — Umbra SDK integration test page
     layout.tsx        — Root layout (dark mode, providers)
   components/
     Header.tsx        — Nav bar with Umbra status badge
-    Dashboard.tsx     — Tab controller for all views
+    Dashboard.tsx     — Tab controller for all views + top home link
+    HomeContent.tsx   — Landing view and dashboard gate
     UmbraTestPanel.tsx — Sequential SDK test runner
     dashboard/
       BrowseLoans.tsx     — Open loan marketplace
       MyBorrowings.tsx    — Borrower view + create loan form
       MyLendings.tsx      — Lender view + liquidation check
-      CreditPassport.tsx  — Scoped viewing key demo
+      CreditPassport.tsx  — Scoped viewing key demo + VeilScore
       YieldPool.tsx       — Private yield pool deposit
       LendingFlows.tsx    — All Umbra-powered lending operations
   lib/
@@ -143,6 +158,13 @@ src/
 The Credit Passport feature demonstrates **selective disclosure** of repayment history using scoped viewing keys. In the current Umbra SDK quickstart, explicit Master Viewing Key (MVK) functions are not yet exposed. The UI provides a full demo experience with simulated key generation and per-loan disclosure toggles.
 
 > Viewing key demo — Umbra MVK selective disclosure to be added post-hackathon per official docs.
+
+The current UI also includes:
+
+- `VeilScore` as a privacy-preserving reputation summary
+- Loan-specific scope toggles for `repayment`, `terms`, and `risk`
+- Exportable proof summaries for lender review
+- Hidden-loan counts so disclosed history stays minimal
 
 ---
 
@@ -180,6 +202,9 @@ Show: My Borrowings, "Repay Privately", UTXO sent to lender. "Repayment is anoth
 
 ### 3:45-4:00 — Credit Passport
 Show: Passport tab, Generate viewing key, Toggle loan disclosures. "For future loans, the borrower generates a scoped viewing key. Lenders verify only the specific loans you choose to reveal. Privacy AND reputation."
+
+### Bonus Callout
+Show: Browse Loans "Deal Room" and the top `Home` link. "Lenders review masked deal data before funding, and the UI always lets you jump back to the landing view without losing the private state."
 
 ---
 

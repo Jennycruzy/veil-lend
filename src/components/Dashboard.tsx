@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BrowseLoans } from "@/components/dashboard/BrowseLoans";
 import { MyBorrowings } from "@/components/dashboard/MyBorrowings";
@@ -11,7 +12,7 @@ import { useLendingFlows } from "@/components/dashboard/LendingFlows";
 import { useWallet } from "@solana/wallet-adapter-react";
 import type { Loan } from "@/lib/types";
 import { toast } from "sonner";
-import { Search, ArrowDownToLine, ArrowUpFromLine, KeyRound, Vault } from "lucide-react";
+import { ArrowDownToLine, ArrowLeft, ArrowUpFromLine, KeyRound, Search, Vault } from "lucide-react";
 
 export function Dashboard() {
   const { publicKey } = useWallet();
@@ -28,6 +29,15 @@ export function Dashboard() {
 
   return (
     <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-6 sm:py-8">
+      <div className="mb-4 flex justify-start">
+        <Link
+          href="/?view=landing"
+          className="inline-flex h-8 items-center justify-center rounded-full border border-white/10 bg-white/5 px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/30 hover:text-primary"
+        >
+          <ArrowLeft className="mr-1 h-3.5 w-3.5" />
+          Home
+        </Link>
+      </div>
       <section className="mb-6 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20 backdrop-blur-xl sm:p-7">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
