@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,11 +20,7 @@ export function MyLendings({ onLiquidate }: MyLendingsProps) {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (publicKey) loadLoans();
-  }, [publicKey]);
-
-  const loadLoans = async () => {
+  const loadLoans = useCallback(async () => {
     if (!publicKey) return;
     setLoading(true);
     try {
@@ -35,7 +31,11 @@ export function MyLendings({ onLiquidate }: MyLendingsProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [publicKey]);
+
+  useEffect(() => {
+    if (publicKey) queueMicrotask(() => void loadLoans());
+  }, [publicKey, loadLoans]);
 
   const formatAmount = (amt: number, mint: string) => {
     const info = TOKEN_INFO[mint];
@@ -55,7 +55,7 @@ export function MyLendings({ onLiquidate }: MyLendingsProps) {
       <Card>
         <CardContent className="py-12 text-center">
           <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">You haven't funded any loans yet.</p>
+          <p className="text-muted-foreground">You have not funded any loans yet.</p>
           <p className="text-xs text-muted-foreground mt-1">
             Browse open requests and fund privately with Umbra.
           </p>

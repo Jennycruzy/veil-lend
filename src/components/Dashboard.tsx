@@ -27,9 +27,39 @@ export function Dashboard() {
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 py-6">
+    <div className="relative z-10 mx-auto w-full max-w-7xl px-4 py-6 sm:py-8">
+      <section className="mb-6 overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20 backdrop-blur-xl sm:p-7">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-2">
+            <p className="text-xs uppercase tracking-[0.28em] text-primary">
+              Private credit console
+            </p>
+            <h2 className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">
+              Operate loans without exposing wallet intent.
+            </h2>
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+              Marketplace metadata stays in Supabase. Token movement is routed
+              through the verified Umbra quickstart primitives and devnet dummy mints.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <p className="text-2xl font-semibold">5</p>
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Tabs</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <p className="text-2xl font-semibold">2</p>
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Mints</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <p className="text-2xl font-semibold">0</p>
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Public flows</p>
+            </div>
+          </div>
+        </div>
+      </section>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-6">
+        <TabsList className="mb-6 grid h-auto w-full grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-black/20 p-2 sm:grid-cols-5">
           <TabsTrigger value="browse" className="flex items-center gap-2">
             <Search className="h-4 w-4" />
             Browse

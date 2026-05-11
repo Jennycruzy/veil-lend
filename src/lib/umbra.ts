@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import {
   UMBRA_RPC_URL,
   UMBRA_RPC_WS_URL,
@@ -36,6 +37,7 @@ export interface UmbraState {
  * correct runtime values matching the official quickstart exactly.
  */
 export function useUmbra(walletPublicKey?: string | null) {
+  const { publicKey, wallet } = useWallet();
   const [state, setState] = useState<UmbraState>({
     status: "disconnected",
     client: null,
@@ -53,9 +55,17 @@ export function useUmbra(walletPublicKey?: string | null) {
 
     try {
       const sdk = await import("@umbra-privacy/sdk");
-      const { createInMemorySigner, getUmbraClient } = sdk;
+      const { createInMemorySigner, createSignerFromWalletAccount, getUmbraClient } = sdk;
 
-      const signer = await createInMemorySigner();
+      const standardWallet = (wallet?.adapter as Any)?.wallet;
+      const walletAddress = publicKey?.toBase58() ?? walletPublicKey;
+      const account = standardWallet?.accounts?.find(
+        (candidate: Any) => candidate.address === walletAddress
+      );
+      const signer =
+        standardWallet && account
+          ? createSignerFromWalletAccount(standardWallet, account)
+          : await createInMemorySigner();
 
       const client = await getUmbraClient({
         signer,
@@ -75,7 +85,7 @@ export function useUmbra(walletPublicKey?: string | null) {
       initializingRef.current = false;
       throw err;
     }
-  }, []);
+  }, [publicKey, wallet, walletPublicKey]);
 
   // Step 4: Register account (confidential + anonymous)
   const register = useCallback(async () => {
@@ -105,14 +115,14 @@ export function useUmbra(walletPublicKey?: string | null) {
   }, []);
 
   // Step 6: Withdraw tokens (encrypted balance -> public balance)
-  const withdraw = useCallback(async (mint: string, amount: bigint) => {
+  const withdraw = useCallback(async (destinationAddress: string, mint: string, amount: bigint) => {
     const client = clientRef.current;
     if (!client) throw new Error("Umbra client not initialized");
 
     const sdk = await import("@umbra-privacy/sdk");
     const { getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction } = sdk;
     const withdrawFn = getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction({ client });
-    return (withdrawFn as Any)(client.signer.address, mint, amount);
+    return withdrawFn(destinationAddress as Any, mint as Any, amount as Any);
   }, []);
 
   // Step 7: Create receiver-claimable UTXO (private payment)
@@ -148,7 +158,7 @@ export function useUmbra(walletPublicKey?: string | null) {
     const sdk = await import("@umbra-privacy/sdk");
     const { getClaimableUtxoScannerFunction } = sdk;
     const fetchUtxos = getClaimableUtxoScannerFunction({ client });
-    return fetchUtxos(BigInt(0) as Any, BigInt(0) as Any);
+    return fetchUtxos(0 as Any, 0 as Any);
   }, []);
 
   // Step 9: Claim UTXO into encrypted balance (with relayer for gasless)

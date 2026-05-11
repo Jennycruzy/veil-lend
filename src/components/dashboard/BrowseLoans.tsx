@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TOKEN_INFO, DUSDC_MINT } from "@/lib/constants";
+import { TOKEN_INFO } from "@/lib/constants";
 import { getOpenLoans } from "@/lib/loans";
 import type { Loan } from "@/lib/types";
 import { Loader2, Eye } from "lucide-react";
@@ -18,11 +17,7 @@ export function BrowseLoans({ onFundLoan }: BrowseLoansProps) {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadLoans();
-  }, []);
-
-  const loadLoans = async () => {
+  const loadLoans = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getOpenLoans();
@@ -33,7 +28,11 @@ export function BrowseLoans({ onFundLoan }: BrowseLoansProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    queueMicrotask(() => void loadLoans());
+  }, [loadLoans]);
 
   const formatAmount = (amount: number, mint: string) => {
     const info = TOKEN_INFO[mint];
@@ -56,7 +55,7 @@ export function BrowseLoans({ onFundLoan }: BrowseLoansProps) {
           <Eye className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <p className="text-muted-foreground">No open loan requests yet.</p>
           <p className="text-xs text-muted-foreground mt-1">
-            Switch to "My Borrowings" to create one, or connect Supabase in .env.local.
+            Switch to My Borrowings to create one, or connect Supabase in .env.local.
           </p>
         </CardContent>
       </Card>

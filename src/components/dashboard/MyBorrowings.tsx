@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,11 +32,7 @@ export function MyBorrowings({ onRepay, onPostCollateral, umbraAddress }: MyBorr
   const [termDays, setTermDays] = useState("30");
   const [interestBps, setInterestBps] = useState("500");
 
-  useEffect(() => {
-    if (publicKey) loadLoans();
-  }, [publicKey]);
-
-  const loadLoans = async () => {
+  const loadLoans = useCallback(async () => {
     if (!publicKey) return;
     setLoading(true);
     try {
@@ -47,7 +43,11 @@ export function MyBorrowings({ onRepay, onPostCollateral, umbraAddress }: MyBorr
     } finally {
       setLoading(false);
     }
-  };
+  }, [publicKey]);
+
+  useEffect(() => {
+    if (publicKey) queueMicrotask(() => void loadLoans());
+  }, [publicKey, loadLoans]);
 
   const handleCreate = async () => {
     if (!publicKey) return;
@@ -145,7 +145,7 @@ export function MyBorrowings({ onRepay, onPostCollateral, umbraAddress }: MyBorr
       ) : loans.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            No borrowing requests yet. Click "New Request" to get started.
+            No borrowing requests yet. Click New Request to get started.
           </CardContent>
         </Card>
       ) : (

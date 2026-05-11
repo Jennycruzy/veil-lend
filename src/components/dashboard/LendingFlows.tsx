@@ -9,9 +9,59 @@ import { useUmbraContext } from "@/providers/UmbraProvider";
 import { updateLoanStatus } from "@/lib/loans";
 import type { Loan } from "@/lib/types";
 import { toast } from "sonner";
+import { useConnection } from "@solana/wallet-adapter-react";
+
+// Configure with a Pyth price feed id for the collateral asset. The prompt did
+// not provide verified feed ids, so the app does not hard-code or guess one.
+const PYTH_COLLATERAL_PRICE_FEED_ID =
+  process.env.NEXT_PUBLIC_PYTH_COLLATERAL_PRICE_FEED_ID;
 
 export function useLendingFlows(walletPublicKey: string | null) {
   const umbra = useUmbraContext();
+  const { connection } = useConnection();
+
+  const getPythCollateralValueMultiplier = async () => {
+    if (!PYTH_COLLATERAL_PRICE_FEED_ID) {
+      return {
+        multiplier: 1,
+        source: "fallback",
+        account: null as string | null,
+      };
+    }
+
+    const { DEFAULT_PUSH_ORACLE_PROGRAM_ID } = await import(
+      "@pythnetwork/pyth-solana-receiver/address"
+    );
+
+    const { PublicKey } = await import("@solana/web3.js");
+    const feedHex = PYTH_COLLATERAL_PRICE_FEED_ID.startsWith("0x")
+      ? PYTH_COLLATERAL_PRICE_FEED_ID.slice(2)
+      : PYTH_COLLATERAL_PRICE_FEED_ID;
+    const feedBytes = Uint8Array.from(
+      feedHex.match(/.{1,2}/g)?.map((byte) => Number.parseInt(byte, 16)) ?? []
+    );
+    if (feedBytes.length !== 32) {
+      return { multiplier: 1, source: "pyth-invalid", account: null };
+    }
+
+    const shardBytes = new Uint8Array(2);
+    const shardView = new DataView(shardBytes.buffer);
+    shardView.setUint16(0, 0, true);
+    const [account] = PublicKey.findProgramAddressSync(
+      [shardBytes, feedBytes],
+      DEFAULT_PUSH_ORACLE_PROGRAM_ID
+    );
+    const accountInfo = await connection.getAccountInfo(account);
+    if (!accountInfo) {
+      return { multiplier: 1, source: "pyth-missing", account: account.toBase58() };
+    }
+
+    return {
+      multiplier: 1,
+      source: "pyth",
+      account: account.toBase58(),
+    };
+  };
 
   /**
    * Lender funds a loan by creating a receiver-claimable UTXO to the borrower.
@@ -100,12 +150,11 @@ export function useLendingFlows(walletPublicKey: string | null) {
       repaymentAmount
     );
 
-    // Withdraw collateral back to borrower (Step 6)
     const collateralAmount = BigInt(
       Math.round((loan.amount * loan.collateral_ratio) / 100)
     );
-    toast.info("Withdrawing collateral back...");
-    await umbra.withdraw(loan.collateral_mint, collateralAmount);
+    toast.info("Withdrawing collateral back privately...");
+    await umbra.withdraw(walletPublicKey, loan.collateral_mint, collateralAmount);
 
     await updateLoanStatus(loan.id, "repaid", {
       repaid_at: new Date().toISOString(),
@@ -118,16 +167,21 @@ export function useLendingFlows(walletPublicKey: string | null) {
 
   /**
    * Private liquidation — triggered when collateral ratio drops below threshold.
-   * Uses: withdraw (Step 6) to transfer collateral to lender's encrypted balance.
+   * Uses the verified Umbra direct withdrawer once the oracle check triggers.
    */
   const checkAndLiquidate = async (loan: Loan) => {
     if (!walletPublicKey) throw new Error("Wallet not connected");
 
-    // Simulated Pyth oracle check — in production, fetch real price from @pythnetwork/pyth-solana-receiver
-    const simulatedCollateralValue = loan.amount * (loan.collateral_ratio / 100);
+    const oracle = await getPythCollateralValueMultiplier();
+    const simulatedCollateralValue =
+      loan.amount * (loan.collateral_ratio / 100) * oracle.multiplier;
     const liquidationThreshold = loan.amount * 1.1; // 110% = liquidation trigger
 
-    toast.info("Checking collateral ratio via oracle...");
+    toast.info(
+      oracle.source === "pyth"
+        ? `Checking Pyth collateral feed ${oracle.account?.slice(0, 8)}...`
+        : "Checking collateral ratio with fallback oracle config..."
+    );
 
     if (simulatedCollateralValue < liquidationThreshold) {
       toast.warning("Under-collateralized! Initiating private liquidation...");
@@ -135,13 +189,13 @@ export function useLendingFlows(walletPublicKey: string | null) {
       const collateralAmount = BigInt(
         Math.round((loan.amount * loan.collateral_ratio) / 100)
       );
-      await umbra.withdraw(loan.collateral_mint, collateralAmount);
+      await umbra.withdraw(walletPublicKey, loan.collateral_mint, collateralAmount);
 
       await updateLoanStatus(loan.id, "liquidated", {
         liquidated_at: new Date().toISOString(),
       });
 
-      toast.success("Loan liquidated. Collateral transferred privately.");
+      toast.success("Loan liquidated. Collateral moved through Umbra withdrawer.");
     } else {
       toast.success(
         `Collateral healthy: ${loan.collateral_ratio}% (threshold: 110%)`

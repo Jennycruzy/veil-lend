@@ -111,10 +111,9 @@ export function UmbraTestPanel({ walletPublicKey }: { walletPublicKey: string })
       return;
     }
 
-    // Step 7: Withdraw
     updateStep(6, { status: "running" });
     try {
-      const res = await umbra.withdraw(DUSDC_MINT, BigInt(100_000)); // 0.1 dUSDC
+      const res = await umbra.withdraw(walletPublicKey, DUSDC_MINT, BigInt(100_000)); // 0.1 dUSDC
       updateStep(6, { status: "success", result: `Withdrew 0.1 dUSDC. Result: ${JSON.stringify(res).slice(0, 80)}...` });
     } catch (e) {
       updateStep(6, { status: "error", result: String(e) });

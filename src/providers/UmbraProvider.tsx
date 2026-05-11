@@ -20,7 +20,7 @@ interface UmbraContextValue {
   error: string | null;
   register: () => Promise<Any>;
   deposit: (mint: string, amount: bigint) => Promise<Any>;
-  withdraw: (mint: string, amount: bigint) => Promise<Any>;
+  withdraw: (destinationAddress: string, mint: string, amount: bigint) => Promise<Any>;
   createUtxo: (destinationAddress: string, mint: string, amount: bigint) => Promise<Any>;
   scanUtxos: () => Promise<Any>;
   claimUtxo: (utxos: Any[]) => Promise<Any>;
@@ -35,36 +35,31 @@ export function useUmbraContext() {
 }
 
 export function UmbraProvider({ children }: { children: ReactNode }) {
-  const { publicKey } = useWallet();
+  const { publicKey, wallet } = useWallet();
   const [status, setStatus] = useState<UmbraStatus>("disconnected");
   const [umbraAddress, setUmbraAddress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const clientRef = useRef<Any>(null);
   const initializingRef = useRef(false);
 
-  // Initialize + register on wallet connect
-  useEffect(() => {
-    if (publicKey && !clientRef.current && !initializingRef.current) {
-      initAndRegister();
-    }
-    if (!publicKey) {
-      clientRef.current = null;
-      initializingRef.current = false;
-      setStatus("disconnected");
-      setUmbraAddress(null);
-    }
-  }, [publicKey]);
-
-  const initAndRegister = async () => {
+  const initAndRegister = useCallback(async () => {
     initializingRef.current = true;
     setStatus("connecting");
     setError(null);
 
     try {
       const sdk = await import("@umbra-privacy/sdk");
-      const { createInMemorySigner, getUmbraClient } = sdk;
+      const { createInMemorySigner, createSignerFromWalletAccount, getUmbraClient } = sdk;
 
-      const signer = await createInMemorySigner();
+      const standardWallet = (wallet?.adapter as Any)?.wallet;
+      const walletAddress = publicKey?.toBase58();
+      const account = standardWallet?.accounts?.find(
+        (candidate: Any) => candidate.address === walletAddress
+      );
+      const signer =
+        standardWallet && account
+          ? createSignerFromWalletAccount(standardWallet, account)
+          : await createInMemorySigner();
 
       const client = await getUmbraClient({
         signer,
@@ -96,7 +91,25 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
         initializingRef.current = false;
       }
     }
-  };
+  }, [publicKey, wallet]);
+
+  // Initialize + register on wallet connect.
+  useEffect(() => {
+    if (publicKey && !clientRef.current && !initializingRef.current) {
+      void initAndRegister();
+      return;
+    }
+
+    if (!publicKey && clientRef.current) {
+      queueMicrotask(() => {
+        clientRef.current = null;
+        initializingRef.current = false;
+        setStatus("disconnected");
+        setUmbraAddress(null);
+        setError(null);
+      });
+    }
+  }, [publicKey, initAndRegister]);
 
   const register = useCallback(async () => {
     const client = clientRef.current;
@@ -119,13 +132,13 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
     return depositFn(client.signer.address, mint as Any, amount as Any);
   }, []);
 
-  const withdraw = useCallback(async (mint: string, amount: bigint) => {
+  const withdraw = useCallback(async (destinationAddress: string, mint: string, amount: bigint) => {
     const client = clientRef.current;
     if (!client) throw new Error("Umbra client not initialized");
     const sdk = await import("@umbra-privacy/sdk");
     const { getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction } = sdk;
     const withdrawFn = getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction({ client });
-    return (withdrawFn as Any)(client.signer.address, mint, amount);
+    return withdrawFn(destinationAddress as Any, mint as Any, amount as Any);
   }, []);
 
   const createUtxo = useCallback(async (destinationAddress: string, mint: string, amount: bigint) => {
@@ -153,7 +166,7 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
     const sdk = await import("@umbra-privacy/sdk");
     const { getClaimableUtxoScannerFunction } = sdk;
     const fetchUtxos = getClaimableUtxoScannerFunction({ client });
-    return fetchUtxos(BigInt(0) as Any, BigInt(0) as Any);
+    return fetchUtxos(0 as Any, 0 as Any);
   }, []);
 
   const claimUtxo = useCallback(async (utxos: Any[]) => {

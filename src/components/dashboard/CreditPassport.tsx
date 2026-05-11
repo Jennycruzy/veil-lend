@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,18 +20,13 @@ interface PassportEntry {
 }
 
 export function CreditPassport() {
-  const { publicKey, signMessage } = useWallet();
+  const { publicKey } = useWallet();
   const [entries, setEntries] = useState<PassportEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewingKey, setViewingKey] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
 
-  // Load real loan history from Supabase
-  useEffect(() => {
-    if (publicKey) loadHistory();
-  }, [publicKey]);
-
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     if (!publicKey) return;
     setLoading(true);
     try {
@@ -54,32 +49,34 @@ export function CreditPassport() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [publicKey]);
 
-  // Derive a real viewing key by signing a deterministic message with the wallet
+  // Load loan metadata history from Supabase.
+  useEffect(() => {
+    if (publicKey) queueMicrotask(() => void loadHistory());
+  }, [publicKey, loadHistory]);
+
+  // Viewing key demo — Umbra MVK selective disclosure to be added post-hackathon per official docs.
+  // The official quickstart pasted for this project exposes no MVK function, so
+  // this creates an obvious non-production demo token for the UI flow only.
   const generateViewingKey = async () => {
-    if (!publicKey || !signMessage) {
-      toast.error("Wallet does not support message signing");
+    if (!publicKey) {
+      toast.error("Connect wallet first");
       return;
     }
 
     setGenerating(true);
     try {
-      const message = new TextEncoder().encode(
-        `VeilLend Credit Passport Viewing Key\nWallet: ${publicKey.toBase58()}\nTimestamp: ${Date.now()}`
-      );
-      const signature = await signMessage(message);
-
-      // Convert signature bytes to a hex viewing key
-      const hexKey = Array.from(signature)
+      const bytes = new Uint8Array(24);
+      crypto.getRandomValues(bytes);
+      const demoKey = Array.from(bytes)
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
 
-      // The viewing key is the wallet-signed proof — lenders can verify authenticity
-      setViewingKey(hexKey);
-      toast.success("Viewing key derived from wallet signature");
+      setViewingKey(`demo-mvk-${publicKey.toBase58().slice(0, 6)}-${demoKey}`);
+      toast.success("Demo viewing key generated");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Signing cancelled");
+      toast.error(e instanceof Error ? e.message : "Viewing key demo failed");
     } finally {
       setGenerating(false);
     }
@@ -131,18 +128,23 @@ export function CreditPassport() {
             Credit Passport
           </CardTitle>
           <CardDescription>
-            Generate a scoped viewing key so lenders can verify your repayment history
-            without revealing your full on-chain activity.
+            Demo a scoped disclosure flow. Official Umbra MVK functions are not
+            present in the approved quickstart, so this screen is intentionally
+            marked as a non-production placeholder.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Your wallet:{" "}
-              <code className="text-primary">
-                {publicKey ? publicKey.toBase58() : "Connect wallet"}
-              </code>
-            </p>
+              <p className="text-xs text-muted-foreground">
+                Connected wallet:{" "}
+                <code className="text-primary">
+                  {publicKey ? publicKey.toBase58() : "Connect wallet"}
+                </code>
+              </p>
+              <p className="rounded-md border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-100">
+                Viewing key demo — Umbra MVK selective disclosure to be added
+                post-hackathon per official docs.
+              </p>
 
             <Button
               onClick={generateViewingKey}
@@ -155,7 +157,7 @@ export function CreditPassport() {
               ) : (
                 <KeyRound className="h-4 w-4 mr-2" />
               )}
-              Sign & Generate Viewing Key
+              Generate Demo Viewing Key
             </Button>
 
             {viewingKey && (

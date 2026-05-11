@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +12,6 @@ import { toast } from "sonner";
 import { Vault, TrendingUp, Loader2 } from "lucide-react";
 
 export function YieldPool() {
-  const { publicKey } = useWallet();
   const umbra = useUmbraContext();
   const [amount, setAmount] = useState("50");
   const [depositing, setDepositing] = useState(false);
@@ -21,12 +19,7 @@ export function YieldPool() {
   const [openLoanCount, setOpenLoanCount] = useState(0);
   const [avgInterestBps, setAvgInterestBps] = useState(0);
 
-  // Load real pool stats from Supabase
-  useEffect(() => {
-    loadPoolStats();
-  }, []);
-
-  const loadPoolStats = async () => {
+  const loadPoolStats = useCallback(async () => {
     try {
       const loans = await getOpenLoans();
       setOpenLoanCount(loans.length);
@@ -37,7 +30,12 @@ export function YieldPool() {
     } catch {
       // Supabase not configured
     }
-  };
+  }, []);
+
+  // Load real pool stats from Supabase.
+  useEffect(() => {
+    queueMicrotask(() => void loadPoolStats());
+  }, [loadPoolStats]);
 
   const handleDeposit = async () => {
     setDepositing(true);
