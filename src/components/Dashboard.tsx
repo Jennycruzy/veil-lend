@@ -38,7 +38,7 @@ export function Dashboard() {
               Operate loans without exposing wallet intent.
             </h2>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-              Marketplace metadata stays in Supabase. Token movement is routed
+              Marketplace metadata stays off-chain. Token movement is routed
               through the verified Umbra quickstart primitives and devnet dummy mints.
             </p>
           </div>

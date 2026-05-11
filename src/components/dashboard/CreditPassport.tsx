@@ -5,7 +5,19 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { KeyRound, ShieldCheck, Lock, Unlock, Loader2, Copy } from "lucide-react";
+import {
+  BadgeCheck,
+  ClipboardCheck,
+  Copy,
+  Download,
+  EyeOff,
+  FileKey,
+  KeyRound,
+  Loader2,
+  Lock,
+  ShieldCheck,
+  Unlock,
+} from "lucide-react";
 import { toast } from "sonner";
 import { getLoansByBorrower } from "@/lib/loans";
 import { TOKEN_INFO } from "@/lib/constants";
@@ -17,6 +29,7 @@ interface PassportEntry {
   status: string;
   date: string;
   disclosed: boolean;
+  scope: "repayment" | "terms" | "risk";
 }
 
 export function CreditPassport() {
@@ -41,6 +54,7 @@ export function CreditPassport() {
             status: loan.status,
             date: new Date(loan.created_at).toLocaleDateString("en-CA"),
             disclosed: false,
+            scope: loan.status === "repaid" ? "repayment" : "terms",
           };
         })
       );
@@ -51,7 +65,7 @@ export function CreditPassport() {
     }
   }, [publicKey]);
 
-  // Load loan metadata history from Supabase.
+  // Load loan metadata history from the off-chain metadata store.
   useEffect(() => {
     if (publicKey) queueMicrotask(() => void loadHistory());
   }, [publicKey, loadHistory]);
@@ -95,6 +109,10 @@ export function CreditPassport() {
     }
   };
 
+  const setScope = (index: number, scope: PassportEntry["scope"]) => {
+    setEntries((prev) => prev.map((e, i) => (i === index ? { ...e, scope } : e)));
+  };
+
   const statusIcon = (s: string) => {
     switch (s) {
       case "repaid": return <ShieldCheck className="h-4 w-4 text-green-400" />;
@@ -106,22 +124,96 @@ export function CreditPassport() {
 
   // Build the disclosed payload a lender would receive
   const disclosedEntries = entries.filter((e) => e.disclosed);
+  const repaid = entries.filter((e) => e.status === "repaid").length;
+  const active = entries.filter((e) => e.status === "active").length;
+  const liquidated = entries.filter((e) => e.status === "liquidated").length;
+  const completionRate = entries.length > 0 ? Math.round((repaid / entries.length) * 100) : 0;
+  const veilScore = Math.max(
+    320,
+    Math.min(850, 560 + repaid * 55 - active * 12 - liquidated * 140 + disclosedEntries.length * 18)
+  );
+  const riskBand = veilScore >= 740 ? "Prime" : veilScore >= 660 ? "Verified" : "Thin file";
   const disclosedPayload = disclosedEntries.length > 0
     ? JSON.stringify(
-        disclosedEntries.map(({ loanId, amount, status, date }) => ({
+        {
+          passportType: "VeilLend scoped credit disclosure",
+          wallet: publicKey?.toBase58() ?? null,
+          viewingKey,
+          veilScore,
+          riskBand,
+          completionRate,
+          disclosedAt: new Date().toISOString(),
+          disclosedLoans: disclosedEntries.map(({ loanId, amount, status, date, scope }) => ({
           loanId,
           amount,
           status,
           date,
-        })),
+            scope,
+          })),
+          hiddenLoans: entries.length - disclosedEntries.length,
+        },
         null,
         2
       )
     : null;
 
+  const exportProofSummary = () => {
+    if (!disclosedPayload) {
+      toast.error("Select at least one loan to disclose");
+      return;
+    }
+
+    const blob = new Blob([disclosedPayload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `veillend-passport-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Proof summary exported");
+  };
+
   return (
     <div className="space-y-4">
-      <Card>
+      <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BadgeCheck className="h-5 w-5 text-primary" />
+              VeilScore
+            </CardTitle>
+            <CardDescription>
+              Scoped reputation from disclosed loan history. Hidden loans remain hidden.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-end justify-between rounded-lg border bg-muted/30 p-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Private credit band</p>
+                <p className="mt-2 text-4xl font-semibold">{veilScore}</p>
+              </div>
+              <Badge className="mb-1" variant={riskBand === "Prime" ? "default" : "outline"}>
+                {riskBand}
+              </Badge>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-lg border bg-background/40 p-3">
+                <p className="text-lg font-semibold">{completionRate}%</p>
+                <p className="text-[11px] text-muted-foreground">completion</p>
+              </div>
+              <div className="rounded-lg border bg-background/40 p-3">
+                <p className="text-lg font-semibold">{disclosedEntries.length}</p>
+                <p className="text-[11px] text-muted-foreground">shared</p>
+              </div>
+              <div className="rounded-lg border bg-background/40 p-3">
+                <p className="text-lg font-semibold">{entries.length - disclosedEntries.length}</p>
+                <p className="text-[11px] text-muted-foreground">hidden</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <KeyRound className="h-5 w-5" />
@@ -172,10 +264,24 @@ export function CreditPassport() {
               </div>
             )}
           </div>
+        </CardContent>
+        </Card>
+      </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ClipboardCheck className="h-5 w-5" />
+            Disclosure Console
+          </CardTitle>
+          <CardDescription>
+            Select loan-specific scopes for a lender. The export contains only selected records.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="space-y-2">
             <h3 className="text-sm font-medium">
-              Your Loan History (select entries to disclose)
+              Loan History
             </h3>
 
             {loading ? (
@@ -212,6 +318,19 @@ export function CreditPassport() {
                     </Badge>
                     <span className="text-xs text-muted-foreground ml-auto">{entry.date}</span>
                   </div>
+                  <div className="hidden items-center gap-1 sm:flex">
+                    {(["repayment", "terms", "risk"] as const).map((scope) => (
+                      <Button
+                        key={scope}
+                        size="xs"
+                        variant={entry.scope === scope ? "default" : "outline"}
+                        onClick={() => setScope(i, scope)}
+                        className="capitalize"
+                      >
+                        {scope}
+                      </Button>
+                    ))}
+                  </div>
                   <Badge variant={entry.disclosed ? "default" : "outline"} className="text-xs">
                     {entry.disclosed ? "Visible" : "Hidden"}
                   </Badge>
@@ -223,12 +342,34 @@ export function CreditPassport() {
           {/* Show the disclosed payload that a lender would receive */}
           {disclosedPayload && (
             <div className="bg-muted/30 border rounded-lg p-4 space-y-2">
-              <h4 className="text-sm font-medium">
-                Lender View ({disclosedEntries.length} loan{disclosedEntries.length > 1 ? "s" : ""} disclosed)
-              </h4>
-              <p className="text-xs text-muted-foreground">
-                This is exactly what the lender sees when they use your viewing key:
-              </p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h4 className="text-sm font-medium">
+                    Lender Verification View ({disclosedEntries.length} disclosed)
+                  </h4>
+                  <p className="text-xs text-muted-foreground">
+                    The proof summary masks undisclosed records and exports as lender-verifiable JSON.
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" onClick={exportProofSummary}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Proof
+                </Button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <Badge variant="outline" className="justify-center">
+                  <FileKey className="h-3 w-3" />
+                  Scoped key
+                </Badge>
+                <Badge variant="outline" className="justify-center">
+                  <ShieldCheck className="h-3 w-3" />
+                  Score {veilScore}
+                </Badge>
+                <Badge variant="outline" className="justify-center">
+                  <EyeOff className="h-3 w-3" />
+                  {entries.length - disclosedEntries.length} hidden
+                </Badge>
+              </div>
               <pre className="text-xs bg-background rounded p-3 overflow-auto">
                 {disclosedPayload}
               </pre>

@@ -128,7 +128,7 @@ export function MyBorrowings({ onRepay, onPostCollateral, umbraAddress }: MyBorr
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Collateral: dUSDT | Borrowing: dUSDC | Metadata stored off-chain (Supabase)
+              Collateral: dUSDT | Borrowing: dUSDC | Metadata stored off-chain
             </p>
             <Button onClick={handleCreate} disabled={submitting} className="w-full">
               {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
