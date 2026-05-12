@@ -180,34 +180,6 @@ The current UI also includes:
 
 ---
 
-## Demo Video Script (4 minutes)
-
-### 0:00-0:30 — The Problem
-"Every DeFi loan on Solana is public. Liquidation bots snipe your positions. Your debt history follows you forever. VeilLend changes this."
-
-### 0:30-1:00 — Connect & Register
-Show: Connect Phantom (devnet). Umbra status badge turns "registered". "One click registers your confidential + anonymous Umbra account. From here, everything is private."
-
-### 1:00-1:45 — Borrower Posts Loan Request
-Show: My Borrowings tab, New Request form, Post 100 dUSDC loan at 150% collateral. "The request metadata is stored off-chain. No on-chain trace of the borrow intent."
-
-### 1:45-2:30 — Lender Funds Privately
-Show: Browse tab, Click "Fund Privately", Umbra creates a receiver-claimable UTXO. "The lender sends dUSDC as a private UTXO. Check Solana Explorer — you see NOTHING. No sender, no receiver, no amount."
-
-### 2:30-3:15 — Borrower Claims + Posts Collateral
-Show: My Borrowings, "Post Collateral", Scan UTXOs, Claim via relayer (gasless!), Deposit collateral. "The borrower claims the funds into their encrypted balance — zero gas cost thanks to Umbra Relayer. Then posts collateral privately."
-
-### 3:15-3:45 — Private Repayment
-Show: My Borrowings, "Repay Privately", UTXO sent to lender. "Repayment is another private UTXO. The lender can verify receipt. The world sees nothing."
-
-### 3:45-4:00 — Credit Passport
-Show: Passport tab, Generate viewing key, Toggle loan disclosures. "For future loans, the borrower generates a scoped viewing key. Lenders verify only the specific loans you choose to reveal. Privacy AND reputation."
-
-### Bonus Callout
-Show: Browse Loans "Deal Room" and the top `Home` link. "Lenders review masked deal data before funding, and the UI always lets you jump back to the landing view without losing the private state."
-
----
-
 ## License
 
 MIT
