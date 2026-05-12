@@ -11,6 +11,7 @@
   "dependencies": {
     "@base-ui/react": "1.4.1",
     "@pythnetwork/pyth-solana-receiver": "0.14.0",
+    "@solana/kit": "6.9.0",
     "@solana/wallet-adapter-base": "0.9.27",
     "@solana/wallet-adapter-react": "0.15.39",
     "@solana/wallet-adapter-react-ui": "0.9.39",
