@@ -1,59 +1,94 @@
-# VeilLend — Private Lending Marketplace on Solana
+# VeilLend
 
-**The most advanced private lending protocol on Solana, powered by [Umbra Protocol](https://umbraprivacy.com).**
+VeilLend is a private lending marketplace for Solana devnet that keeps loan intent, collateral movement, and repayment flow out of public view by routing value through the verified Umbra quickstart primitives.
 
-Built for the Umbra Frontier Hackathon.
+It is built for the Umbra Frontier Hackathon and is designed to demonstrate a real user flow, not just a mock UI.
 
 ---
 
 ## The Problem
 
-Public DeFi lending exposes every position on-chain:
-- Liquidation snipers front-run under-collateralized borrowers
-- Permanent debt history creates unjust blacklists
-- Lenders' capital allocation strategies are visible to competitors
+Public on-chain lending leaks too much:
 
-## The Solution
+- Borrowers expose when they want capital, how much they need, and what collateral they can post
+- Lenders reveal their strategy, capital allocation, and risk appetite
+- Repayment history becomes permanent public reputation data
+- Liquidation risk is visible early enough for other actors to react against users
 
-VeilLend makes every step of the lending lifecycle private using Umbra's confidential transaction SDK:
+That makes lending behavior easier to track, copy, front-run, and profile.
 
-1. **Shielded Loan Marketplace** — Borrowers post requests anonymously. Lenders browse without revealing intent.
-2. **Private Loan Funding** — Lenders send funds via Umbra receiver-claimable UTXOs. No public transfer visible.
-3. **Confidential Collateral** — Borrowers deposit collateral into encrypted balances.
-4. **Private Repayment** — Repayments flow through Umbra UTXOs back to lenders.
-5. **Private Liquidation** — Under-collateralization triggers confidential collateral transfer (Pyth oracle).
-6. **Credit Passport** — Borrowers generate scoped viewing keys for selective disclosure of repayment history.
-7. **Private Reputation / VeilScore** — Lenders get a scoped reputation signal without exposing full history.
-8. **Private Deal Room** — Each listing opens a masked lender review panel before funding.
-9. **Private Yield Pool** — Lenders deposit into a shared encrypted pool that auto-matches small loans.
-10. **Gasless Operations** — All claims and repayments use the Umbra Relayer.
+## What VeilLend Solves
+
+VeilLend moves the sensitive parts of the lending lifecycle into private Umbra flows while keeping marketplace metadata usable for the frontend.
+
+- Loan requests are stored off-chain in Supabase
+- Funds move through receiver-claimable UTXOs instead of public SPL transfers
+- Collateral is deposited into encrypted balances
+- Repayment is sent privately to the lender
+- Claims can be completed gaslessly through the Umbra relayer
+- A credit passport screen demonstrates scoped disclosure for lender review
+
+The result is a private credit workflow that still feels like a normal marketplace.
+
+---
+
+## Current Build
+
+This repository currently ships:
+
+- A public landing page with a route into the marketplace
+- A marketplace view with `Browse`, `Borrowings`, `Lendings`, `Yield Pool`, and `Passport` tabs
+- A top-left `Home` button on private pages to return to the landing screen
+- A dedicated Umbra SDK test page at `/test`
+- Devnet support with `dUSDC` and `dUSDT` faucet flows
+- Solflare and Phantom-compatible transaction signing through the wallet adapter
+
+### Main User Flows
+
+- `Browse` lets a lender fund open requests privately
+- `Borrowings` lets a borrower create a request, post collateral, and repay privately
+- `Lendings` shows funded positions and liquidation checks
+- `Yield Pool` shows the private pool concept for matched liquidity
+- `Passport` shows scoped disclosure and reputation summary UX
+
+### Wallet and Network Notes
+
+- The app is intended for devnet
+- Phantom, Solflare, and similar Solana wallets should be set to devnet
+- Token movement uses real Umbra signing and transaction flows
+- Marketplace metadata remains off-chain
 
 ---
 
 ## Umbra SDK Integration
 
-Every monetary flow uses **only** verified functions from the [official Umbra quickstart](https://sdk.umbraprivacy.com/quickstart):
+The build uses the official Umbra quickstart primitives:
 
 | Flow | Umbra Function |
-|------|---------------|
-| Initialize | `getUmbraClient` + `createInMemorySigner` |
-| Register | `getUserRegistrationFunction` (confidential + anonymous) |
+|------|----------------|
+| Initialize | `getUmbraClient` |
+| Register | `getUserRegistrationFunction` |
 | Deposit collateral | `getPublicBalanceToEncryptedBalanceDirectDepositorFunction` |
-| Withdraw | `getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction` |
-| Fund loan / Repay | `getPublicBalanceToReceiverClaimableUtxoCreatorFunction` + ZK prover |
-| Scan UTXOs | `getClaimableUtxoScannerFunction` |
-| Claim (gasless) | `getReceiverClaimableUtxoToEncryptedBalanceClaimerFunction` + relayer |
+| Withdraw collateral | `getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction` |
+| Create private funding / repayment UTXOs | `getPublicBalanceToReceiverClaimableUtxoCreatorFunction` |
+| Scan claimable UTXOs | `getClaimableUtxoScannerFunction` |
+| Claim UTXOs gaslessly | `getReceiverClaimableUtxoToEncryptedBalanceClaimerFunction` + `getUmbraRelayer` |
 
-Packages: `@umbra-privacy/sdk` + `@umbra-privacy/web-zk-prover`
+Packages used:
+
+- `@umbra-privacy/sdk`
+- `@umbra-privacy/web-zk-prover`
+- `@solana/kit`
+- `@solana/web3.js`
 
 ---
 
 ## Devnet Tokens
 
-**You must claim test tokens before using VeilLend.**
+You need faucet tokens before using the marketplace.
 
 | Token | Mint Address | Faucet |
-|-------|-------------|--------|
+|------|--------------|--------|
 | dUSDC | `4oG4sjmopf5MzvTHLE8rpVJ2uyczxfsw2K84SUTpNDx7` | [faucet.umbraprivacy.com](https://faucet.umbraprivacy.com) |
 | dUSDT | `DXQwBNGgyQ2BzGWxEriJPVmXYFQBsQbXvfvfSNTaJkL6` | [faucet.umbraprivacy.com](https://faucet.umbraprivacy.com) |
 
@@ -62,27 +97,30 @@ Packages: `@umbra-privacy/sdk` + `@umbra-privacy/web-zk-prover`
 ## Getting Started
 
 ### Prerequisites
+
 - Node.js 20+
 - pnpm
-- Phantom or Solflare wallet (set to **Devnet**)
-- Supabase project (free tier) for loan metadata
+- A Solana wallet extension set to devnet
+- A Supabase project for loan metadata
 
 ### Setup
 
 ```bash
 git clone https://github.com/your-username/veillend.git
 cd veillend
-nvm use 20  # or ensure Node 20+
+nvm use 20
 pnpm install
 cp .env.local.example .env.local
-# Fill in your Supabase URL and anon key in .env.local
 ```
+
+Fill in your Supabase URL and anon key in `.env.local`.
 
 ### Database Setup
 
-1. Create a free Supabase project at [supabase.com](https://supabase.com)
-2. Open the SQL Editor and run `supabase-schema.sql`
-3. Copy your project URL and anon key to `.env.local`
+1. Create a Supabase project
+2. Open the SQL editor
+3. Run `supabase-schema.sql`
+4. Copy the project URL and anon key into `.env.local`
 
 ### Run Locally
 
@@ -90,95 +128,73 @@ cp .env.local.example .env.local
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open `http://localhost:3000`.
 
 ### Test Umbra SDK
 
-Visit [http://localhost:3000/test](http://localhost:3000/test) to run all 7 Umbra SDK steps in sequence.
+Open `http://localhost:3000/test` to run the sequential Umbra SDK integration checks.
 
-### Judge-Ready Flow
+### Marketplace Route
 
-The main dashboard now includes:
+- Landing page: `/`
+- Marketplace: `/marketplace`
+- Test page: `/test`
 
-- A top-of-page `Home` link above the private credit console
-- A private deal room in `Browse Loans` for masked lender review
-- `VeilScore` reputation signals in the Credit Passport
-- Scoped disclosure controls for repayment, terms, and risk
-- Exportable proof summaries for lender review
+Use the `Home` button inside the marketplace to return to the landing page.
 
-Use the home link to switch back to the public landing view with `/?view=landing`.
+---
 
-### Deploy to Vercel
+## Why This Build Matters
 
-```bash
-npx vercel --prod
-```
+VeilLend shows that private lending on Solana does not have to sacrifice usability.
 
-Set environment variables in Vercel dashboard:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+It gives the user:
+
+- A place to publish a loan request without exposing the full intent publicly
+- A private funding path that does not broadcast the borrower-lender negotiation in plain SPL transfers
+- A private collateral and repayment flow
+- A clean demo of how selective disclosure can support credit review without exposing the full account history
+
+This is the core value: keep the lending market functional while removing the public data exhaust that makes DeFi lending easy to surveil.
 
 ---
 
 ## Architecture
 
-```
+```text
 src/
   app/
-    page.tsx          — Root route with landing + dashboard switch
-    test/page.tsx     — Umbra SDK integration test page
-    layout.tsx        — Root layout (dark mode, providers)
+    page.tsx          Root landing and dashboard switch
+    marketplace/page.tsx Private marketplace route
+    test/page.tsx     Umbra SDK integration test page
+    layout.tsx        Root layout and app shell
   components/
-    Header.tsx        — Nav bar with Umbra status badge
-    Dashboard.tsx     — Tab controller for all views + top home link
-    HomeContent.tsx   — Landing view and dashboard gate
-    UmbraTestPanel.tsx — Sequential SDK test runner
+    Header.tsx        Top navigation and wallet state
+    HomeContent.tsx   Landing page content
+    Dashboard.tsx     Marketplace tabs and Home button
+    UmbraTestPanel.tsx Sequential SDK test runner
     dashboard/
-      BrowseLoans.tsx     — Open loan marketplace
-      MyBorrowings.tsx    — Borrower view + create loan form
-      MyLendings.tsx      — Lender view + liquidation check
-      CreditPassport.tsx  — Scoped viewing key demo + VeilScore
-      YieldPool.tsx       — Private yield pool deposit
-      LendingFlows.tsx    — All Umbra-powered lending operations
+      BrowseLoans.tsx    Open loan marketplace
+      MyBorrowings.tsx   Borrower requests, collateral, repayment
+      MyLendings.tsx     Lender positions and liquidation checks
+      CreditPassport.tsx Scoped disclosure and reputation view
+      YieldPool.tsx      Private pool concept
+      LendingFlows.tsx   Umbra-powered lending operations
   lib/
-    umbra.ts      — useUmbra hook (all SDK functions)
-    constants.ts  — Mint addresses, endpoints
-    supabase.ts   — Supabase client (lazy init)
-    loans.ts      — CRUD for loan metadata
-    types.ts      — TypeScript types
+    umbra.ts         Umbra helpers and test page hooks
+    loans.ts         Supabase loan metadata CRUD
+    supabase.ts      Lazy Supabase client
+    constants.ts     Mints, endpoints, and app constants
   providers/
-    WalletProvider.tsx  — Phantom + Solflare
-    QueryProvider.tsx   — TanStack React Query
+    WalletProvider.tsx Wallet adapter setup
+    UmbraProvider.tsx  Umbra client and signer bridge
 ```
 
 ---
 
-## Credit Passport (Viewing Keys)
+## Status
 
-The Credit Passport feature demonstrates **selective disclosure** of repayment history using scoped viewing keys. In the current Umbra SDK quickstart, explicit Master Viewing Key (MVK) functions are not yet exposed. The UI provides a full demo experience with simulated key generation and per-loan disclosure toggles.
-
-> Viewing key demo — Umbra MVK selective disclosure to be added post-hackathon per official docs.
-
-The current UI also includes:
-
-- `VeilScore` as a privacy-preserving reputation summary
-- Loan-specific scope toggles for `repayment`, `terms`, and `risk`
-- Exportable proof summaries for lender review
-- Hidden-loan counts so disclosed history stays minimal
-
----
-
-## Tech Stack
-
-- Next.js 15 (App Router) + TypeScript
-- Tailwind CSS + shadcn/ui
-- @umbra-privacy/sdk + @umbra-privacy/web-zk-prover
-- @solana/wallet-adapter (Phantom, Solflare)
-- @tanstack/react-query
-- Supabase (off-chain loan metadata)
-- Lucide icons
-
----
+This is a devnet prototype with real private transfer plumbing and some product surfaces that are intentionally framed as demonstrations, especially the scoped disclosure passport experience.
 
 ## License
 

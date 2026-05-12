@@ -94,20 +94,26 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
         let signedWireTransaction: Uint8Array;
 
         try {
-          const versionedTransaction = VersionedTransaction.deserialize(wireTransaction);
-          const signedTransaction = await signTransaction(versionedTransaction);
-          signedWireTransaction = signedTransaction.serialize();
-        } catch (err) {
-          if (err instanceof Error && !err.message.toLowerCase().includes("version")) {
-            throw err;
-          }
-
           const legacyTransaction = Transaction.from(wireTransaction);
           const signedTransaction = await signTransaction(legacyTransaction);
           signedWireTransaction = signedTransaction.serialize({
             requireAllSignatures: false,
             verifySignatures: false,
           });
+        } catch (err) {
+          const parseMessage = err instanceof Error ? err.message.toLowerCase() : "";
+          const shouldTryVersioned =
+            parseMessage.includes("versioned") ||
+            parseMessage.includes("version") ||
+            parseMessage.includes("transaction message version");
+
+          if (!shouldTryVersioned) {
+            throw err;
+          }
+
+          const versionedTransaction = VersionedTransaction.deserialize(wireTransaction);
+          const signedTransaction = await signTransaction(versionedTransaction);
+          signedWireTransaction = signedTransaction.serialize();
         }
 
         const signedKitTransaction = transactionDecoder.decode(signedWireTransaction);
