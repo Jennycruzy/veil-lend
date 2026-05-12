@@ -2,6 +2,7 @@
 
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Dashboard } from "@/components/Dashboard";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, ExternalLink, LockKeyhole, RadioTower, Shield, Sparkles } from "lucide-react";
@@ -73,7 +74,13 @@ export function HomeContent() {
                   <p className="text-xs text-muted-foreground">Off-chain metadata, private settlement</p>
                 </div>
               </div>
-              <Badge variant="outline" className="border-primary/25 text-primary">Open</Badge>
+              <Link
+                href="/marketplace"
+                className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/15 hover:border-primary/40"
+              >
+                Open marketplace
+                <ArrowRight className="h-3 w-3" />
+              </Link>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-2xl bg-white/[0.04] p-4">
