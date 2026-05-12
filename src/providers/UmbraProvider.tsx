@@ -49,7 +49,9 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
 
     try {
       const sdk = await import("@umbra-privacy/sdk");
+      const proverMod = await import("@umbra-privacy/web-zk-prover");
       const { createInMemorySigner, createSignerFromWalletAccount, getUmbraClient } = sdk;
+      const { getUserRegistrationProver } = proverMod;
 
       const standardWallet = (wallet?.adapter as Any)?.wallet;
       const walletAddress = publicKey?.toBase58();
@@ -76,7 +78,8 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
       // Auto-register
       setStatus("registering");
       const { getUserRegistrationFunction } = sdk;
-      const registerFn = getUserRegistrationFunction({ client });
+      const zkProver = getUserRegistrationProver();
+      const registerFn = getUserRegistrationFunction({ client }, { zkProver });
       await registerFn({ confidential: true, anonymous: true });
       setStatus("registered");
     } catch (err) {
@@ -116,8 +119,11 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
     if (!client) throw new Error("Umbra client not initialized");
     setStatus("registering");
     const sdk = await import("@umbra-privacy/sdk");
+    const proverMod = await import("@umbra-privacy/web-zk-prover");
     const { getUserRegistrationFunction } = sdk;
-    const registerFn = getUserRegistrationFunction({ client });
+    const { getUserRegistrationProver } = proverMod;
+    const zkProver = getUserRegistrationProver();
+    const registerFn = getUserRegistrationFunction({ client }, { zkProver });
     const sigs = await registerFn({ confidential: true, anonymous: true });
     setStatus("registered");
     return sigs;

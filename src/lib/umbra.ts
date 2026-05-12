@@ -93,8 +93,11 @@ export function useUmbra(walletPublicKey?: string | null) {
     if (!client) throw new Error("Umbra client not initialized");
 
     const sdk = await import("@umbra-privacy/sdk");
+    const proverMod = await import("@umbra-privacy/web-zk-prover");
     const { getUserRegistrationFunction } = sdk;
-    const registerFn = getUserRegistrationFunction({ client });
+    const { getUserRegistrationProver } = proverMod;
+    const zkProver = getUserRegistrationProver();
+    const registerFn = getUserRegistrationFunction({ client }, { zkProver });
     const signatures = await registerFn({
       confidential: true,
       anonymous: true,
