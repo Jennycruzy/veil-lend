@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +15,8 @@ import { Vault, TrendingUp, Loader2 } from "lucide-react";
 
 export function YieldPool() {
   const umbra = useUmbraContext();
+  const { publicKey } = useWallet();
+  const { connection } = useConnection();
   const [amount, setAmount] = useState("50");
   const [depositing, setDepositing] = useState(false);
   const [poolBalance, setPoolBalance] = useState(0);
@@ -37,16 +41,63 @@ export function YieldPool() {
     queueMicrotask(() => void loadPoolStats());
   }, [loadPoolStats]);
 
+  const getWalletDusdcBalance = async () => {
+    if (!publicKey) return BigInt(0);
+
+    const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
+      mint: new PublicKey(DUSDC_MINT),
+    });
+
+    return accounts.value.reduce((total, account) => {
+      const rawAmount = account.account.data.parsed.info.tokenAmount.amount as string;
+      return total + BigInt(rawAmount);
+    }, BigInt(0));
+  };
+
+  const formatDepositError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message.includes("0x1") || message.toLowerCase().includes("insufficient")) {
+      return "Deposit failed because the wallet does not have enough devnet dUSDC or SOL for this transaction.";
+    }
+
+    if (message.length > 180) {
+      return "Deposit transaction failed. Check that the wallet is on devnet, registered with Umbra, and has dUSDC plus a small SOL fee balance.";
+    }
+
+    return message;
+  };
+
   const handleDeposit = async () => {
     setDepositing(true);
     try {
-      // Step 5: Deposit into encrypted balance (this is the private yield pool)
-      const amountBase = BigInt(Math.round(parseFloat(amount) * 1_000_000));
+      if (!publicKey) throw new Error("Connect wallet first.");
+      if (umbra.status === "error") throw new Error(umbra.error ?? "Umbra is not ready.");
+      if (umbra.status === "connecting" || umbra.status === "registering") {
+        throw new Error("Umbra is still initializing. Try again when the status shows connected or registered.");
+      }
+
+      const parsedAmount = Number.parseFloat(amount);
+      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        throw new Error("Enter a valid dUSDC amount.");
+      }
+
+      const amountBase = BigInt(Math.round(parsedAmount * 1_000_000));
+      const solBalance = await connection.getBalance(publicKey);
+      if (solBalance < 5_000_000) {
+        throw new Error("Deposit needs a small amount of devnet SOL for transaction fees.");
+      }
+
+      const dusdcBalance = await getWalletDusdcBalance();
+      if (dusdcBalance < amountBase) {
+        throw new Error(`Insufficient dUSDC balance. Need ${amount} dUSDC in this wallet before depositing.`);
+      }
+
       await umbra.deposit(DUSDC_MINT, amountBase);
-      setPoolBalance((prev) => prev + parseFloat(amount));
+      setPoolBalance((prev) => prev + parsedAmount);
       toast.success(`Deposited ${amount} dUSDC into private yield pool!`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Deposit failed");
+      toast.error(formatDepositError(e));
     } finally {
       setDepositing(false);
     }
@@ -112,10 +163,10 @@ export function YieldPool() {
               <Badge variant="outline">How it works</Badge>
             </h3>
             <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-              <li>Your dUSDC is deposited into an Umbra encrypted balance (Step 5 of SDK)</li>
+              <li>Your dUSDC is deposited into a private encrypted balance</li>
               <li>The pool auto-matches your funds to open loan requests from the marketplace</li>
-              <li>Borrowers repay via private UTXOs — interest accrues to your encrypted balance</li>
-              <li>Withdraw anytime back to your public wallet (Step 6 of SDK)</li>
+              <li>Borrowers repay via private UTXOs and interest accrues to your balance</li>
+              <li>Withdraw anytime back to your public wallet</li>
             </ol>
           </div>
         </CardContent>
