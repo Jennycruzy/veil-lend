@@ -148,18 +148,19 @@ export function useLendingFlows(walletPublicKey: string | null) {
     }
 
     // Step 8: Scan for the funding UTXO
-    const { received } = await umbra.scanUtxos();
+    const { received, publicReceived } = await umbra.scanUtxos();
+    const claimableUtxos = [...(received ?? []), ...(publicReceived ?? [])];
 
-    if (!received || received.length === 0) {
+    if (claimableUtxos.length === 0) {
       toast.error("No claimable UTXOs found. The lender may not have funded yet.");
       return;
     }
 
     const matchedUtxo =
-      received.find((utxo: { amount?: unknown }) => {
+      claimableUtxos.find((utxo: { amount?: unknown }) => {
         const amount = utxo.amount ?? 0;
         return BigInt(String(amount)) === BigInt(loan.amount);
-      }) ?? received[0];
+      }) ?? claimableUtxos[0];
 
     // Step 9: Claim UTXO into encrypted balance (gasless via relayer)
     toast.info("Claiming funds via relayer (gasless)...");

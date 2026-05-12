@@ -188,6 +188,9 @@ export function MyBorrowings({ onRepay, onPostCollateral, umbraAddress }: MyBorr
                 ))}
               </TableBody>
             </Table>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Repay becomes available after a funded loan has collateral posted and moves to <code>active</code>.
+            </p>
           </CardContent>
         </Card>
       )}
