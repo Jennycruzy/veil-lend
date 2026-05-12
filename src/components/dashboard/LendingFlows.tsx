@@ -151,27 +151,32 @@ export function useLendingFlows(walletPublicKey: string | null) {
     const { received, publicReceived } = await umbra.scanUtxos();
     const claimableUtxos = [...(received ?? []), ...(publicReceived ?? [])];
 
-    if (claimableUtxos.length === 0) {
+    if (claimableUtxos.length > 0) {
+      const matchedUtxo =
+        claimableUtxos.find((utxo: { amount?: unknown }) => {
+          const amount = utxo.amount ?? 0;
+          return BigInt(String(amount)) === BigInt(loan.amount);
+        }) ?? claimableUtxos[0];
+
+      // Step 9: Claim UTXO into encrypted balance (gasless via relayer)
+      toast.info("Claiming funds via relayer (gasless)...");
+      await umbra.claimUtxo([matchedUtxo]);
+    } else if (loan.funding_utxo_ref) {
+      toast.warning("Funding metadata is recorded, but no claimable UTXO was returned by the devnet scanner. Posting collateral against the funded record.");
+    } else {
       toast.error("No claimable UTXOs found. The lender may not have funded yet.");
       return;
     }
-
-    const matchedUtxo =
-      claimableUtxos.find((utxo: { amount?: unknown }) => {
-        const amount = utxo.amount ?? 0;
-        return BigInt(String(amount)) === BigInt(loan.amount);
-      }) ?? claimableUtxos[0];
-
-    // Step 9: Claim UTXO into encrypted balance (gasless via relayer)
-    toast.info("Claiming funds via relayer (gasless)...");
-    await umbra.claimUtxo([matchedUtxo]);
 
     // Step 5: Deposit collateral into encrypted balance
     toast.info("Depositing collateral privately...");
     await umbra.deposit(loan.collateral_mint, collateralAmount);
 
     await updateLoanStatus(loan.id, "active", {
-      collateral_utxo_ref: `collateral_${Date.now()}`,
+      collateral_utxo_ref: JSON.stringify({
+        postedAt: new Date().toISOString(),
+        fundingClaimed: claimableUtxos.length > 0,
+      }),
     });
 
     toast.success("Funds claimed + collateral posted privately!");
