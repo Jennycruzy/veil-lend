@@ -10,6 +10,7 @@ import { updateLoanStatus } from "@/lib/loans";
 import type { Loan } from "@/lib/types";
 import { toast } from "sonner";
 import { useConnection } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
 
 // Configure with a Pyth price feed id for the collateral asset. The prompt did
 // not provide verified feed ids, so the app does not hard-code or guess one.
@@ -63,6 +64,27 @@ export function useLendingFlows(walletPublicKey: string | null) {
     };
   };
 
+  const getWalletTokenBalance = async (mint: string) => {
+    if (!walletPublicKey) return BigInt(0);
+
+    const owner = new PublicKey(walletPublicKey);
+    const mintKey = new PublicKey(mint);
+    const accounts = await connection.getParsedTokenAccountsByOwner(owner, {
+      mint: mintKey,
+    });
+
+    return accounts.value.reduce((total, account) => {
+      const amount = account.account.data.parsed.info.tokenAmount.amount as string;
+      return total + BigInt(amount);
+    }, BigInt(0));
+  };
+
+  const getWalletSolBalance = async () => {
+    if (!walletPublicKey) return BigInt(0);
+    const owner = new PublicKey(walletPublicKey);
+    return BigInt(await connection.getBalance(owner));
+  };
+
   /**
    * Lender funds a loan by creating a receiver-claimable UTXO to the borrower.
    * Uses: getPublicBalanceToReceiverClaimableUtxoCreatorFunction (Step 7)
@@ -73,13 +95,26 @@ export function useLendingFlows(walletPublicKey: string | null) {
       throw new Error("This loan was created before Umbra registration. The borrower needs to delete it and create a new one.");
     }
 
+    const requiredAmount = BigInt(loan.amount);
+    const solBalance = await getWalletSolBalance();
+    if (solBalance < BigInt(5_000_000)) {
+      throw new Error("Funding this loan needs a small amount of devnet SOL for fees. Use the faucet and try again.");
+    }
+
+    const availableLoanMint = await getWalletTokenBalance(loan.loan_mint);
+    if (availableLoanMint < requiredAmount) {
+      throw new Error(
+        `Insufficient lender balance for this loan. Need ${requiredAmount.toString()} base units, have ${availableLoanMint.toString()}.`
+      );
+    }
+
     toast.info("Creating private UTXO to fund loan...");
 
     // Step 7: Create receiver-claimable UTXO to the borrower's registered Umbra address
     const sigs = await umbra.createUtxo(
       loan.borrower_umbra_address,
       loan.loan_mint,
-      BigInt(loan.amount)
+      requiredAmount
     );
 
     // Update loan status in Supabase
@@ -102,6 +137,16 @@ export function useLendingFlows(walletPublicKey: string | null) {
 
     toast.info("Scanning for claimable UTXOs...");
 
+    const collateralAmount = BigInt(
+      Math.round((loan.amount * loan.collateral_ratio) / 100)
+    );
+    const availableCollateral = await getWalletTokenBalance(loan.collateral_mint);
+    if (availableCollateral < collateralAmount) {
+      throw new Error(
+        `Insufficient collateral balance. Need ${collateralAmount.toString()} base units, have ${availableCollateral.toString()}.`
+      );
+    }
+
     // Step 8: Scan for the funding UTXO
     const { received } = await umbra.scanUtxos();
 
@@ -110,14 +155,17 @@ export function useLendingFlows(walletPublicKey: string | null) {
       return;
     }
 
+    const matchedUtxo =
+      received.find((utxo: { amount?: unknown }) => {
+        const amount = utxo.amount ?? 0;
+        return BigInt(String(amount)) === BigInt(loan.amount);
+      }) ?? received[0];
+
     // Step 9: Claim UTXO into encrypted balance (gasless via relayer)
     toast.info("Claiming funds via relayer (gasless)...");
-    await umbra.claimUtxo([received[0]]);
+    await umbra.claimUtxo([matchedUtxo]);
 
     // Step 5: Deposit collateral into encrypted balance
-    const collateralAmount = BigInt(
-      Math.round((loan.amount * loan.collateral_ratio) / 100)
-    );
     toast.info("Depositing collateral privately...");
     await umbra.deposit(loan.collateral_mint, collateralAmount);
 

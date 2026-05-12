@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
 import {
   UMBRA_RPC_URL,
   UMBRA_RPC_WS_URL,
@@ -36,6 +37,7 @@ export function useUmbraContext() {
 
 export function UmbraProvider({ children }: { children: ReactNode }) {
   const { publicKey, wallet } = useWallet();
+  const { connection } = useConnection();
   const [status, setStatus] = useState<UmbraStatus>("disconnected");
   const [umbraAddress, setUmbraAddress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,17 +68,23 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
 
     try {
       const sdk = await import("@umbra-privacy/sdk");
-      const { createInMemorySigner, createSignerFromWalletAccount, getUmbraClient } = sdk;
+      const { createSignerFromWalletAccount, getUmbraClient } = sdk;
 
-      const standardWallet = (wallet?.adapter as Any)?.wallet;
+      const standardWallet = (wallet?.adapter as Any)?.wallet as Any | undefined;
       const walletAddress = publicKey?.toBase58();
       const account = standardWallet?.accounts?.find(
         (candidate: Any) => candidate.address === walletAddress
-      );
-      const signer =
-        standardWallet && account
-          ? createSignerFromWalletAccount(standardWallet, account)
-          : await createInMemorySigner();
+      ) as Any | undefined;
+
+      if (!standardWallet) {
+        throw new Error("Connected wallet is not exposing a Wallet Standard adapter.");
+      }
+
+      if (!account) {
+        throw new Error("Connected wallet account could not be resolved for Umbra signing.");
+      }
+
+      const signer = createSignerFromWalletAccount(standardWallet, account);
 
       const client = await withTimeout(
         getUmbraClient({
@@ -90,18 +98,17 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
       );
 
       clientRef.current = client;
+      if (String(client.signer.address) !== walletAddress) {
+        throw new Error("Umbra signer does not match the connected wallet address.");
+      }
       setUmbraAddress(String(signer.address));
       setStatus("connected");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (clientRef.current) {
-        setStatus("connected");
-        setError(`Umbra init pending: ${msg}`);
-      } else {
-        setStatus("error");
-        setError(msg);
-        initializingRef.current = false;
-      }
+      clientRef.current = null;
+      setStatus("error");
+      setError(msg);
+      initializingRef.current = false;
     }
   }, [publicKey, wallet]);
 
@@ -125,17 +132,31 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
   const register = useCallback(async () => {
     const client = clientRef.current;
     if (!client) throw new Error("Umbra client not initialized");
+    if (!publicKey) throw new Error("Wallet not connected");
+
+    const solBalance = await connection.getBalance(publicKey);
+    if (solBalance < 5_000_000) {
+      throw new Error("Umbra registration needs a small amount of devnet SOL for fees.");
+    }
+
     setStatus("registering");
-    const sdk = await import("@umbra-privacy/sdk");
-    const proverMod = await import("@umbra-privacy/web-zk-prover");
-    const { getUserRegistrationFunction } = sdk;
-    const { getUserRegistrationProver } = proverMod;
-    const zkProver = getUserRegistrationProver();
-    const registerFn = getUserRegistrationFunction({ client }, { zkProver });
-    const sigs = await registerFn({ confidential: true, anonymous: true });
-    setStatus("registered");
-    return sigs;
-  }, []);
+    try {
+      const sdk = await import("@umbra-privacy/sdk");
+      const proverMod = await import("@umbra-privacy/web-zk-prover");
+      const { getUserRegistrationFunction } = sdk;
+      const { getUserRegistrationProver } = proverMod;
+      const zkProver = getUserRegistrationProver();
+      const registerFn = getUserRegistrationFunction({ client }, { zkProver });
+      const sigs = await registerFn({ confidential: true, anonymous: true });
+      setStatus("registered");
+      return sigs;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStatus("connected");
+      setError(msg);
+      throw err;
+    }
+  }, [connection, publicKey]);
 
   const deposit = useCallback(async (mint: string, amount: bigint) => {
     const client = clientRef.current;
