@@ -1,5 +1,5 @@
 -- VeilLend Supabase Schema
--- Run this in the Supabase SQL Editor to create the loans table.
+-- Run this in the Supabase SQL Editor to create the metadata tables.
 -- NEVER store private keys or Umbra sensitive data here — only public metadata.
 
 CREATE TABLE IF NOT EXISTS loans (
@@ -32,3 +32,20 @@ CREATE INDEX IF NOT EXISTS idx_loans_status ON loans(status);
 -- Enable Row Level Security (allow all for hackathon demo — tighten for production)
 ALTER TABLE loans ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all for hackathon" ON loans FOR ALL USING (true) WITH CHECK (true);
+
+CREATE TABLE IF NOT EXISTS yield_pool_positions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  wallet_pubkey TEXT NOT NULL,
+  mint TEXT NOT NULL,
+  balance_amount BIGINT NOT NULL DEFAULT 0,
+  total_deposited BIGINT NOT NULL DEFAULT 0,
+  total_withdrawn BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(wallet_pubkey, mint)
+);
+
+CREATE INDEX IF NOT EXISTS idx_yield_pool_positions_wallet ON yield_pool_positions(wallet_pubkey);
+
+ALTER TABLE yield_pool_positions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all yield pool metadata for hackathon" ON yield_pool_positions FOR ALL USING (true) WITH CHECK (true);

@@ -27,3 +27,14 @@ export interface Loan {
   collateral_utxo_ref: string | null;
   repayment_utxo_ref: string | null;
 }
+
+export interface YieldPoolPosition {
+  id: string;
+  wallet_pubkey: string;
+  mint: string;
+  balance_amount: number;
+  total_deposited: number;
+  total_withdrawn: number;
+  created_at: string;
+  updated_at: string;
+}
