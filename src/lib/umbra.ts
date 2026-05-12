@@ -208,7 +208,7 @@ export function useUmbra(walletPublicKey?: string | null) {
         },
       }
     );
-    return fetchUtxos(0n as Any, 0n as Any, 10_000n as Any);
+    return fetchUtxos(BigInt(0) as Any, BigInt(0) as Any, BigInt(10_000) as Any);
   }, []);
 
   // Step 9: Claim UTXO into encrypted balance (with relayer for gasless)
