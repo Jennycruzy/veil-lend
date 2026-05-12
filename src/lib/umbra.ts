@@ -47,6 +47,23 @@ export function useUmbra(walletPublicKey?: string | null) {
   const clientRef = useRef<Any>(null);
   const initializingRef = useRef(false);
 
+  const withTimeout = useCallback(async <T,>(promise: Promise<T>, label: string, ms = 30000) => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(new Error(`${label} timed out after ${ms / 1000}s`));
+          }, ms);
+        }),
+      ]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }, []);
+
   // Step 2 + 3: Create signer + Umbra client
   const initialize = useCallback(async () => {
     if (initializingRef.current || clientRef.current) return;
@@ -67,13 +84,16 @@ export function useUmbra(walletPublicKey?: string | null) {
           ? createSignerFromWalletAccount(standardWallet, account)
           : await createInMemorySigner();
 
-      const client = await getUmbraClient({
-        signer,
-        network: "devnet" as Any,
-        rpcUrl: UMBRA_RPC_URL as Any,
-        rpcSubscriptionsUrl: UMBRA_RPC_WS_URL as Any,
-        indexerApiEndpoint: UMBRA_INDEXER_URL,
-      });
+      const client = await withTimeout(
+        getUmbraClient({
+          signer,
+          network: "devnet" as Any,
+          rpcUrl: UMBRA_RPC_URL as Any,
+          rpcSubscriptionsUrl: UMBRA_RPC_WS_URL as Any,
+          indexerApiEndpoint: UMBRA_INDEXER_URL,
+        }),
+        "Umbra client initialization"
+      );
 
       clientRef.current = client;
       const umbraAddress = String(signer.address);
@@ -186,17 +206,16 @@ export function useUmbra(walletPublicKey?: string | null) {
     return claimFn(utxos);
   }, []);
 
-  // Auto-initialize and register when wallet connects
+  // Reset the local client when the wallet disconnects.
   useEffect(() => {
-    if (walletPublicKey && !clientRef.current) {
-      initialize().then(() => {
-        // Auto-register after initialization
-        return register();
-      }).catch(() => {
-        // Registration may fail if already registered — that's fine
+    if (!walletPublicKey && clientRef.current) {
+      queueMicrotask(() => {
+        clientRef.current = null;
+        initializingRef.current = false;
+        setState({ status: "disconnected", client: null, error: null, umbraAddress: null });
       });
     }
-  }, [walletPublicKey, initialize, register]);
+  }, [walletPublicKey]);
 
   return {
     ...state,

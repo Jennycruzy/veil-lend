@@ -42,6 +42,23 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
   const clientRef = useRef<Any>(null);
   const initializingRef = useRef(false);
 
+  const withTimeout = useCallback(async <T,>(promise: Promise<T>, label: string, ms = 30000) => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(new Error(`${label} timed out after ${ms / 1000}s`));
+          }, ms);
+        }),
+      ]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }, []);
+
   const initAndRegister = useCallback(async () => {
     initializingRef.current = true;
     setStatus("connecting");
@@ -49,9 +66,7 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
 
     try {
       const sdk = await import("@umbra-privacy/sdk");
-      const proverMod = await import("@umbra-privacy/web-zk-prover");
       const { createInMemorySigner, createSignerFromWalletAccount, getUmbraClient } = sdk;
-      const { getUserRegistrationProver } = proverMod;
 
       const standardWallet = (wallet?.adapter as Any)?.wallet;
       const walletAddress = publicKey?.toBase58();
@@ -63,31 +78,25 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
           ? createSignerFromWalletAccount(standardWallet, account)
           : await createInMemorySigner();
 
-      const client = await getUmbraClient({
-        signer,
-        network: "devnet" as Any,
-        rpcUrl: UMBRA_RPC_URL as Any,
-        rpcSubscriptionsUrl: UMBRA_RPC_WS_URL as Any,
-        indexerApiEndpoint: UMBRA_INDEXER_URL,
-      });
+      const client = await withTimeout(
+        getUmbraClient({
+          signer,
+          network: "devnet" as Any,
+          rpcUrl: UMBRA_RPC_URL as Any,
+          rpcSubscriptionsUrl: UMBRA_RPC_WS_URL as Any,
+          indexerApiEndpoint: UMBRA_INDEXER_URL,
+        }),
+        "Umbra client initialization"
+      );
 
       clientRef.current = client;
       setUmbraAddress(String(signer.address));
       setStatus("connected");
-
-      // Auto-register
-      setStatus("registering");
-      const { getUserRegistrationFunction } = sdk;
-      const zkProver = getUserRegistrationProver();
-      const registerFn = getUserRegistrationFunction({ client }, { zkProver });
-      await registerFn({ confidential: true, anonymous: true });
-      setStatus("registered");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      // If registration fails (e.g. no SOL), still keep connected status
       if (clientRef.current) {
         setStatus("connected");
-        setError(`Registration pending: ${msg}`);
+        setError(`Umbra init pending: ${msg}`);
       } else {
         setStatus("error");
         setError(msg);
@@ -96,11 +105,10 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
     }
   }, [publicKey, wallet]);
 
-  // Initialize + register on wallet connect.
+  // Initialize the client on wallet connect.
   useEffect(() => {
     if (publicKey && !clientRef.current && !initializingRef.current) {
       void initAndRegister();
-      return;
     }
 
     if (!publicKey && clientRef.current) {
