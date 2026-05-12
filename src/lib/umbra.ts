@@ -64,8 +64,6 @@ export function useUmbra(walletPublicKey?: string | null) {
     }
   }, []);
 
-  const toBigInt = (value: unknown) => (typeof value === "bigint" ? value : BigInt(value as Any));
-
   // Step 2 + 3: Create signer + Umbra client
   const initialize = useCallback(async () => {
     if (initializingRef.current || clientRef.current) return;
@@ -182,94 +180,7 @@ export function useUmbra(walletPublicKey?: string | null) {
 
     const sdk = await import("@umbra-privacy/sdk");
     const { getClaimableUtxoScannerFunction } = sdk;
-    const base64ToBytes = (base64: string) => {
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      return bytes;
-    };
-
-    const bytesToBigIntLE = (bytes: Uint8Array) => {
-      let value = BigInt(0);
-      for (let i = bytes.length - 1; i >= 0; i -= 1) {
-        value = (value << BigInt(8)) | BigInt(bytes[i] ?? 0);
-      }
-      return value;
-    };
-
-    const splitAddressBase64 = (base64: string) => {
-      const bytes = base64ToBytes(base64);
-      return {
-        low: bytesToBigIntLE(bytes.slice(0, 16)),
-        high: bytesToBigIntLE(bytes.slice(16, 32)),
-      };
-    };
-
-    const fetchUtxoDataDirect = async (startIndex: bigint, endIndex?: bigint, limit?: bigint) => {
-      const params = new URLSearchParams();
-      params.set("start", startIndex.toString());
-      if (endIndex !== undefined) params.set("end", endIndex.toString());
-      if (limit !== undefined) params.set("limit", limit.toString());
-
-      const response = await fetch(`${UMBRA_INDEXER_URL.replace(/\/+$/, "")}/v1/utxos?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error(`Indexer request failed: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      const items = new Map(
-        (data.items ?? []).map((item: Any) => [
-          toBigInt(item.insertion_index),
-          {
-            absoluteIndex: toBigInt(item.absolute_index),
-            treeIndex: toBigInt(item.tree_index),
-            insertionIndex: toBigInt(item.insertion_index),
-            finalCommitment: item.final_commitment,
-            h1Components: {
-              version: toBigInt(item.h1_version),
-              commitmentIndex: toBigInt(item.h1_commitment_index),
-              senderAddressLow: splitAddressBase64(item.h1_sender_address).low,
-              senderAddressHigh: splitAddressBase64(item.h1_sender_address).high,
-              relayerFixedSolFees: toBigInt(item.h1_relayer_fixed_sol_fees),
-              mintAddressLow: splitAddressBase64(item.h1_mint_address).low,
-              mintAddressHigh: splitAddressBase64(item.h1_mint_address).high,
-              timestamp: {
-                year: toBigInt(item.h1_year),
-                month: toBigInt(item.h1_month),
-                day: toBigInt(item.h1_day),
-                hour: toBigInt(item.h1_hour),
-                minute: toBigInt(item.h1_minute),
-                second: toBigInt(item.h1_second),
-              },
-              poolVolumeSpl: toBigInt(item.h1_pool_volume_spl),
-              poolVolumeSol: toBigInt(item.h1_pool_volume_sol),
-            },
-            h1Hash: item.h1_hash,
-            h2Hash: item.h2_hash,
-            aesEncryptedData: item.aes_encrypted_data,
-            depositorX25519PublicKey: item.depositor_x25519_public_key,
-            timestamp: toBigInt(item.timestamp),
-            slot: toBigInt(item.slot),
-            eventType: item.event_type,
-          },
-        ])
-      );
-
-      return {
-        items,
-        hasMore: Boolean(data.has_more),
-        nextCursor: data.next_cursor === null || data.next_cursor === undefined ? undefined : toBigInt(data.next_cursor),
-        totalCount: toBigInt(data.total_count ?? 0),
-      };
-    };
-    const fetchUtxos = getClaimableUtxoScannerFunction(
-      { client },
-      {
-        fetchUtxoData: fetchUtxoDataDirect as Any,
-      }
-    );
+    const fetchUtxos = getClaimableUtxoScannerFunction({ client });
     return fetchUtxos(BigInt(0) as Any, BigInt(0) as Any, BigInt(10_000) as Any);
   }, []);
 

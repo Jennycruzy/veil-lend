@@ -227,7 +227,7 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
     const sdk = await import("@umbra-privacy/sdk");
     const { getClaimableUtxoScannerFunction } = sdk;
     const fetchUtxos = getClaimableUtxoScannerFunction({ client });
-    return fetchUtxos(0 as Any, 0 as Any);
+    return fetchUtxos(BigInt(0) as Any, BigInt(0) as Any, BigInt(10_000) as Any);
   }, []);
 
   const claimUtxo = useCallback(async (utxos: Any[]) => {
