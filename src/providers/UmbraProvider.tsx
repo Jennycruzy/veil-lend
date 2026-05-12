@@ -3,7 +3,6 @@
 import { createContext, useContext, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useConnection } from "@solana/wallet-adapter-react";
-import { Transaction, VersionedTransaction } from "@solana/web3.js";
 import {
   UMBRA_RPC_URL,
   UMBRA_RPC_WS_URL,
@@ -37,7 +36,7 @@ export function useUmbraContext() {
 }
 
 export function UmbraProvider({ children }: { children: ReactNode }) {
-  const { publicKey, signTransaction, signMessage } = useWallet();
+  const { publicKey, wallet } = useWallet();
   const { connection } = useConnection();
   const [status, setStatus] = useState<UmbraStatus>("disconnected");
   const [umbraAddress, setUmbraAddress] = useState<string | null>(null);
@@ -69,59 +68,27 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
 
     try {
       const sdk = await import("@umbra-privacy/sdk");
-      const sdkAny = sdk as Any;
-      const { getUmbraClient } = sdk;
+      const { getUmbraClient, createSignerFromWalletAccount } = sdk;
       const walletAddress = publicKey?.toBase58();
 
       if (!walletAddress) {
         throw new Error("Connected wallet address is not available.");
       }
 
-      if (!signTransaction) {
-        throw new Error("Connected wallet cannot sign transactions.");
+      const standardWallet = (wallet?.adapter as Any)?.wallet as Any | undefined;
+      if (!standardWallet) {
+        throw new Error("Connected wallet does not expose Wallet Standard accounts.");
       }
 
-      if (!signMessage) {
-        throw new Error("Connected wallet cannot sign messages.");
+      const account =
+        standardWallet.accounts?.find((candidate: Any) => candidate.address === walletAddress) ??
+        standardWallet.accounts?.[0];
+
+      if (!account) {
+        throw new Error("Connected wallet does not expose an authorized account.");
       }
 
-      const encoder = sdkAny.getTransactionEncoder();
-      const decoder = sdkAny.getTransactionDecoder();
-      const signUmbraTransaction = async (transaction: Any) => {
-        const wireBytes = encoder.encode(transaction);
-
-        try {
-          const versionedTx = VersionedTransaction.deserialize(wireBytes);
-          const signedTx = await signTransaction(versionedTx);
-          return decoder.decode(signedTx.serialize());
-        } catch {
-          const legacyTx = Transaction.from(wireBytes);
-          const signedTx = await signTransaction(legacyTx);
-          return decoder.decode(
-            signedTx.serialize({ requireAllSignatures: false, verifySignatures: false })
-          );
-        }
-      };
-
-      const signer = {
-        address: walletAddress as Any,
-        signTransaction: signUmbraTransaction,
-        signTransactions: async (transactions: readonly Any[]) => {
-          const signedTransactions: Any[] = [];
-          for (const transaction of transactions) {
-            signedTransactions.push(await signUmbraTransaction(transaction));
-          }
-          return signedTransactions;
-        },
-        signMessage: async (message: Uint8Array) => {
-          const signature = await signMessage(message);
-          return {
-            message,
-            signature,
-            signer: walletAddress,
-          };
-        },
-      } as Any;
+      const signer = createSignerFromWalletAccount(standardWallet, account);
 
       const client = await withTimeout(
         getUmbraClient({
@@ -144,7 +111,7 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
       setError(msg);
       initializingRef.current = false;
     }
-  }, [publicKey, signTransaction, signMessage]);
+  }, [publicKey, wallet]);
 
   // Initialize the client on wallet connect.
   useEffect(() => {
