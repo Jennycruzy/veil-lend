@@ -180,7 +180,32 @@ export function useUmbra(walletPublicKey?: string | null) {
 
     const sdk = await import("@umbra-privacy/sdk");
     const { getClaimableUtxoScannerFunction } = sdk;
-    const fetchUtxos = getClaimableUtxoScannerFunction({ client });
+    const fetchUtxos = getClaimableUtxoScannerFunction(
+      { client },
+      {
+        fetchUtxoData: async (startIndex, endIndex, limit) => {
+          const result = await client.fetchUtxoData(startIndex, endIndex, limit);
+          return {
+            ...result,
+            items: new Map(
+              Array.from(result.items.entries(), ([key, item]) => [
+                BigInt(key as Any),
+                {
+                  ...item,
+                  absoluteIndex: BigInt(item.absoluteIndex as Any),
+                  treeIndex: BigInt(item.treeIndex as Any),
+                  insertionIndex: BigInt(item.insertionIndex as Any),
+                  timestamp: BigInt(item.timestamp as Any),
+                  slot: BigInt(item.slot as Any),
+                },
+              ])
+            ),
+            nextCursor: result.nextCursor === undefined ? undefined : BigInt(result.nextCursor as Any),
+            totalCount: BigInt(result.totalCount as Any),
+          };
+        },
+      }
+    );
     return fetchUtxos(0n as Any, 0n as Any, 10_000n as Any);
   }, []);
 
