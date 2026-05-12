@@ -181,7 +181,7 @@ export function useUmbra(walletPublicKey?: string | null) {
     const sdk = await import("@umbra-privacy/sdk");
     const { getClaimableUtxoScannerFunction } = sdk;
     const fetchUtxos = getClaimableUtxoScannerFunction({ client });
-    return fetchUtxos(0 as Any, 0 as Any);
+    return fetchUtxos(0n as Any, 0n as Any, 10_000n as Any);
   }, []);
 
   // Step 9: Claim UTXO into encrypted balance (with relayer for gasless)
