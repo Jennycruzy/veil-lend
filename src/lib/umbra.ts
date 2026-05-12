@@ -64,6 +64,8 @@ export function useUmbra(walletPublicKey?: string | null) {
     }
   }, []);
 
+  const toBigInt = (value: unknown) => (typeof value === "bigint" ? value : BigInt(value as Any));
+
   // Step 2 + 3: Create signer + Umbra client
   const initialize = useCallback(async () => {
     if (initializingRef.current || clientRef.current) return;
@@ -189,19 +191,19 @@ export function useUmbra(walletPublicKey?: string | null) {
             ...result,
             items: new Map(
               Array.from(result.items.entries(), ([key, item]) => [
-                BigInt(key as Any),
+                toBigInt(key),
                 {
                   ...item,
-                  absoluteIndex: BigInt(item.absoluteIndex as Any),
-                  treeIndex: BigInt(item.treeIndex as Any),
-                  insertionIndex: BigInt(item.insertionIndex as Any),
-                  timestamp: BigInt(item.timestamp as Any),
-                  slot: BigInt(item.slot as Any),
+                  absoluteIndex: toBigInt(item.absoluteIndex),
+                  treeIndex: toBigInt(item.treeIndex),
+                  insertionIndex: toBigInt(item.insertionIndex),
+                  timestamp: toBigInt(item.timestamp),
+                  slot: toBigInt(item.slot),
                 },
               ])
             ),
-            nextCursor: result.nextCursor === undefined ? undefined : BigInt(result.nextCursor as Any),
-            totalCount: BigInt(result.totalCount as Any),
+            nextCursor: result.nextCursor === undefined ? undefined : toBigInt(result.nextCursor),
+            totalCount: toBigInt(result.totalCount),
           };
         },
       }
