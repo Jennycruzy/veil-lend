@@ -36,13 +36,14 @@ export function useUmbraContext() {
 }
 
 export function UmbraProvider({ children }: { children: ReactNode }) {
-  const { publicKey, wallet } = useWallet();
+  const { publicKey, signMessage } = useWallet();
   const { connection } = useConnection();
   const [status, setStatus] = useState<UmbraStatus>("disconnected");
   const [umbraAddress, setUmbraAddress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const clientRef = useRef<Any>(null);
   const initializingRef = useRef(false);
+  const initializedForWalletRef = useRef<string | null>(null);
 
   const withTimeout = useCallback(async <T,>(promise: Promise<T>, label: string, ms = 30000) => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -68,27 +69,47 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
 
     try {
       const sdk = await import("@umbra-privacy/sdk");
-      const { getUmbraClient, createSignerFromWalletAccount } = sdk;
+      const { getUmbraClient } = sdk;
       const walletAddress = publicKey?.toBase58();
 
       if (!walletAddress) {
         throw new Error("Connected wallet address is not available.");
       }
 
-      const standardWallet = (wallet?.adapter as Any)?.wallet as Any | undefined;
-      if (!standardWallet) {
-        throw new Error("Connected wallet does not expose Wallet Standard accounts.");
+      if (!signMessage) {
+        throw new Error("Connected wallet cannot sign messages.");
       }
 
-      const account =
-        standardWallet.accounts?.find((candidate: Any) => candidate.address === walletAddress) ??
-        standardWallet.accounts?.[0];
+      const signUmbraTransaction = async (transaction: Any) => {
+        const signature = await signMessage(transaction.messageBytes);
+        return {
+          ...transaction,
+          signatures: {
+            ...transaction.signatures,
+            [walletAddress]: signature,
+          },
+        };
+      };
 
-      if (!account) {
-        throw new Error("Connected wallet does not expose an authorized account.");
-      }
-
-      const signer = createSignerFromWalletAccount(standardWallet, account);
+      const signer = {
+        address: walletAddress as Any,
+        signTransaction: signUmbraTransaction,
+        signTransactions: async (transactions: readonly Any[]) => {
+          const signedTransactions: Any[] = [];
+          for (const transaction of transactions) {
+            signedTransactions.push(await signUmbraTransaction(transaction));
+          }
+          return signedTransactions;
+        },
+        signMessage: async (message: Uint8Array) => {
+          const signature = await signMessage(message);
+          return {
+            message,
+            signature,
+            signer: walletAddress,
+          };
+        },
+      } as Any;
 
       const client = await withTimeout(
         getUmbraClient({
@@ -102,6 +123,7 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
       );
 
       clientRef.current = client;
+      initializedForWalletRef.current = walletAddress;
       setUmbraAddress(String(signer.address));
       setStatus("connected");
     } catch (err) {
@@ -111,11 +133,13 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
       setError(msg);
       initializingRef.current = false;
     }
-  }, [publicKey, wallet]);
+  }, [publicKey, signMessage]);
 
   // Initialize the client on wallet connect.
   useEffect(() => {
-    if (publicKey && !clientRef.current && !initializingRef.current) {
+    const walletAddress = publicKey?.toBase58() ?? null;
+
+    if (walletAddress && initializedForWalletRef.current !== walletAddress && !initializingRef.current) {
       void initAndRegister();
     }
 
@@ -123,6 +147,7 @@ export function UmbraProvider({ children }: { children: ReactNode }) {
       queueMicrotask(() => {
         clientRef.current = null;
         initializingRef.current = false;
+        initializedForWalletRef.current = null;
         setStatus("disconnected");
         setUmbraAddress(null);
         setError(null);
